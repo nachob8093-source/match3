@@ -1,0 +1,1695 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cueva de Cristales - Juego Match-3</title>
+    <!-- Tailwind CSS para diseño responsivo y estructura -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Cinzel para títulos místicos y Outfit para interfaz limpia -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Estilos personalizados para la temática de Cueva de Cristal y animaciones del juego */
+        :root {
+            --bg-deep: #090717;
+            --bg-cavern: #141033;
+            --accent-glow: #7c3aed;
+            --gold-shine: #fbbf24;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: radial-gradient(circle at 50% 20%, #1e164b 0%, #0d0a24 55%, #050410 100%);
+            color: #f8fafc;
+            min-height: 100vh;
+            overflow-x: hidden;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        h1, .font-mystic {
+            font-family: 'Cinzel', serif;
+        }
+
+        /* Fondo de estrellas y partículas ambientales */
+        .ambient-bg {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            background-image: 
+                radial-gradient(2px 2px at 15% 25%, rgba(255,255,255,0.4), transparent),
+                radial-gradient(2px 2px at 80% 15%, rgba(167,139,250,0.5), transparent),
+                radial-gradient(3px 3px at 35% 75%, rgba(56,189,248,0.3), transparent),
+                radial-gradient(2px 2px at 70% 85%, rgba(244,114,182,0.4), transparent),
+                radial-gradient(1.5px 1.5px at 50% 45%, rgba(255,255,255,0.3), transparent);
+            background-size: 400px 400px;
+            animation: driftBg 40s linear infinite;
+        }
+
+        @keyframes driftBg {
+            0% { background-position: 0 0; }
+            100% { background-position: 400px 400px; }
+        }
+
+        /* Contenedor del Tablero */
+        .board-frame {
+            background: linear-gradient(145deg, rgba(30, 27, 75, 0.88), rgba(15, 12, 41, 0.96));
+            border: 3px solid rgba(139, 92, 246, 0.5);
+            box-shadow: 
+                0 0 40px rgba(124, 58, 237, 0.4),
+                inset 0 0 25px rgba(0, 0, 0, 0.85);
+            border-radius: 1.25rem;
+            padding: 8px;
+            position: relative;
+            backdrop-filter: blur(8px);
+            flex-shrink: 0;
+        }
+
+        /* Cuadrícula 10x10 panorámica y maximizada en altura */
+        #game-board {
+            position: relative;
+            width: min(92vw, 90vh, 840px);
+            height: min(92vw, 90vh, 840px);
+            background: rgba(9, 7, 23, 0.72);
+            border-radius: 0.85rem;
+            overflow: hidden;
+            touch-action: none; /* Prevenir scroll al arrastrar gemas */
+        }
+
+        @media (min-width: 1024px) {
+            #game-board {
+                width: min(64vw, 92vh, 880px);
+                height: min(64vw, 92vh, 880px);
+            }
+        }
+
+        /* Celdas de fondo tipo tablero de ajedrez sutil (10x10) */
+        .grid-bg {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            grid-template-rows: repeat(10, 1fr);
+            pointer-events: none;
+        }
+
+        .grid-cell {
+            border: 1px solid rgba(255, 255, 255, 0.035);
+        }
+
+        /* Pieza / Gema individual (10% por casilla, padding mínimo para que ocupe ~90% de la celda) */
+        .gem {
+            position: absolute;
+            width: 10%;
+            height: 10%;
+            padding: 2.5%;
+            cursor: pointer;
+            transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gem-inner {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.75)) contrast(1.06);
+            transition: transform 0.18s ease, filter 0.18s ease;
+        }
+
+        .gem:hover .gem-inner {
+            transform: scale(1.07);
+            filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.65)) brightness(1.08);
+        }
+
+        /* Estado seleccionado */
+        .gem.selected .gem-inner {
+            transform: scale(1.13);
+            filter: drop-shadow(0 0 16px #fde047) brightness(1.12);
+            animation: pulseSelected 0.9s infinite alternate;
+        }
+
+        .gem.selected::after {
+            content: '';
+            position: absolute;
+            inset: 2%;
+            border: 3px solid #fde047;
+            border-radius: 14px;
+            box-shadow: 0 0 14px #fde047, inset 0 0 10px #fde047;
+            pointer-events: none;
+        }
+
+        @keyframes pulseSelected {
+            from { transform: scale(1.09); }
+            to { transform: scale(1.17); }
+        }
+
+        /* Animación de Pista (Hint) */
+        .gem.hint .gem-inner {
+            animation: hintBounce 0.7s infinite alternate ease-in-out;
+            filter: drop-shadow(0 0 16px #38bdf8) brightness(1.15);
+        }
+
+        @keyframes hintBounce {
+            0% { transform: scale(0.95) rotate(-5deg); }
+            100% { transform: scale(1.15) rotate(5deg); }
+        }
+
+        /* Animación al explotar/desaparecer */
+        .gem.matched {
+            transform: scale(0) rotate(45deg) !important;
+            opacity: 0;
+            transition: transform 0.28s ease-in, opacity 0.25s ease-in;
+            z-index: 5;
+        }
+
+        /* Indicadores visuales para Gemas Especiales */
+        /* Gema Explosiva / Rayada (Match de 4) */
+        .gem-special-flame .gem-inner::before {
+            content: '';
+            position: absolute;
+            inset: 4%;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.55) 0%, rgba(251, 191, 36, 0.25) 55%, transparent 75%);
+            animation: flameGlow 1.1s infinite alternate ease-in-out;
+            pointer-events: none;
+        }
+
+        .gem-special-flame .gem-inner::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            border: 3px dashed #ffffff;
+            box-shadow: 0 0 14px #fde047, inset 0 0 12px rgba(255, 255, 255, 0.9);
+            animation: spinSlow 3.5s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes flameGlow {
+            from { transform: scale(0.92); opacity: 0.75; }
+            to { transform: scale(1.12); opacity: 1; }
+        }
+
+        @keyframes spinSlow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Hiper-gema Arcoíris (Match de 5) */
+        .gem-hypercube .gem-inner {
+            animation: rainbowPulse 1.4s infinite linear;
+        }
+
+        @keyframes rainbowPulse {
+            0% { filter: drop-shadow(0 0 12px #ef4444) hue-rotate(0deg) brightness(1.1); transform: scale(1.02); }
+            50% { filter: drop-shadow(0 0 18px #3b82f6) hue-rotate(180deg) brightness(1.2); transform: scale(1.09); }
+            100% { filter: drop-shadow(0 0 12px #ef4444) hue-rotate(360deg) brightness(1.1); transform: scale(1.02); }
+        }
+
+        /* Capa de efectos visuales (partículas, rayos y textos flotantes) */
+        #fx-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 30;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: particleFly 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes particleFly {
+            0% {
+                transform: translate(0, 0) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--tx), var(--ty)) scale(0);
+                opacity: 0;
+            }
+        }
+
+        .floating-score {
+            position: absolute;
+            font-weight: 800;
+            font-size: 1.15rem;
+            color: #fff;
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9), 0 0 12px rgba(251, 191, 36, 0.8);
+            transform: translate(-50%, -50%);
+            animation: floatUp 0.95s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            white-space: nowrap;
+            z-index: 40;
+        }
+
+        @keyframes floatUp {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -20%) scale(0.7);
+            }
+            20% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.15);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -145%) scale(0.95);
+            }
+        }
+
+        /* Onda expansiva para explosiones */
+        .shockwave {
+            position: absolute;
+            border-radius: 50%;
+            border: 4px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 0 20px #fbbf24;
+            transform: translate(-50%, -50%) scale(0.1);
+            animation: shockExpand 0.45s ease-out forwards;
+        }
+
+        @keyframes shockExpand {
+            to {
+                transform: translate(-50%, -50%) scale(2.8);
+                opacity: 0;
+            }
+        }
+
+        /* Botones estilizados */
+        .btn-mystic {
+            background: linear-gradient(135deg, #6d28d9 0%, #4c1d95 100%);
+            border: 1px solid rgba(196, 181, 253, 0.4);
+            box-shadow: 0 4px 15px rgba(109, 40, 217, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+            transition: all 0.2s ease;
+        }
+
+        .btn-mystic:hover:not(:disabled) {
+            background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(124, 58, 237, 0.65);
+        }
+
+        .btn-mystic:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+
+        .btn-mystic:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        /* Paneles de cristal translúcido */
+        .glass-panel {
+            background: rgba(20, 16, 51, 0.75);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Sacudida suave del tablero en combos grandes */
+        .shake-board {
+            animation: boardShake 0.35s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes boardShake {
+            10%, 90% { transform: translate3d(-2px, 0, 0); }
+            20%, 80% { transform: translate3d(3px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+    </style>
+</head>
+<body class="p-2 sm:p-3 lg:px-6 lg:py-2">
+
+    <div class="ambient-bg"></div>
+
+    <!-- Contenedor Principal Panorámico (16:9 en escritorio, vertical en móvil) -->
+    <main class="relative z-10 w-full max-w-[1440px] flex flex-col lg:flex-row items-center justify-center gap-3 lg:gap-7">
+        
+        <!-- Panel Lateral HUD (Izquierda en escritorio, arriba/abajo compacto en móvil) -->
+        <aside class="w-full max-w-[520px] lg:w-80 xl:w-96 flex flex-col gap-2.5 lg:gap-4 shrink-0">
+            
+            <!-- Encabezado y Botones Superiores -->
+            <header class="w-full glass-panel rounded-2xl p-3 lg:p-4 flex items-center justify-between">
+                <div>
+                    <h1 class="text-lg sm:text-xl lg:text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-purple-200 to-cyan-200 drop-shadow">
+                        CUEVA DE CRISTALES
+                    </h1>
+                    <p class="text-xs text-purple-300/85">Tablero 10×10 • Combina 3 o más</p>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <!-- Botón de Ayuda / Reglas -->
+                    <button id="btn-help" title="Cómo jugar" class="bg-slate-950/60 border border-purple-500/30 p-2.5 rounded-xl text-purple-200 hover:text-white hover:border-purple-400 transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </button>
+                    <!-- Botón de Sonido -->
+                    <button id="btn-sound" title="Activar/Silenciar sonido" class="bg-slate-950/60 border border-purple-500/30 p-2.5 rounded-xl text-purple-200 hover:text-white hover:border-purple-400 transition">
+                        <!-- Icono sonido activo -->
+                        <svg id="icon-sound-on" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+                        </svg>
+                        <!-- Icono sonido silenciado -->
+                        <svg id="icon-sound-off" class="w-5 h-5 hidden text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path>
+                        </svg>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Panel de Estadísticas (Nivel, Puntos, Movimientos y Progreso) -->
+            <section class="w-full glass-panel rounded-2xl p-3 lg:p-4 flex flex-col gap-3">
+                <div class="grid grid-cols-3 lg:grid-cols-1 gap-2 lg:gap-2.5 text-center lg:text-left">
+                    <!-- Nivel -->
+                    <div class="bg-slate-950/60 rounded-xl p-2 lg:px-4 lg:py-3 border border-purple-500/25 flex flex-col lg:flex-row lg:items-center lg:justify-between">
+                        <span class="block text-[11px] lg:text-xs uppercase tracking-wider text-purple-300 font-semibold">Nivel</span>
+                        <span id="ui-level" class="text-xl lg:text-3xl font-extrabold text-amber-300">1</span>
+                    </div>
+                    <!-- Puntuación -->
+                    <div class="bg-slate-950/60 rounded-xl p-2 lg:px-4 lg:py-3 border border-purple-500/25 flex flex-col lg:flex-row lg:items-center lg:justify-between">
+                        <span class="block text-[11px] lg:text-xs uppercase tracking-wider text-purple-300 font-semibold">Puntos</span>
+                        <span id="ui-score" class="text-xl lg:text-3xl font-extrabold text-white">0</span>
+                    </div>
+                    <!-- Movimientos -->
+                    <div class="bg-slate-950/60 rounded-xl p-2 lg:px-4 lg:py-3 border border-purple-500/25 flex flex-col lg:flex-row lg:items-center lg:justify-between">
+                        <span class="block text-[11px] lg:text-xs uppercase tracking-wider text-purple-300 font-semibold">Turnos</span>
+                        <span id="ui-moves" class="text-xl lg:text-3xl font-extrabold text-cyan-300">30</span>
+                    </div>
+                </div>
+
+                <!-- Barra de Progreso hacia el siguiente nivel -->
+                <div class="w-full pt-1">
+                    <div class="flex justify-between text-xs text-purple-200 mb-1.5 px-1">
+                        <span>Meta de Nivel</span>
+                        <span id="ui-target-text" class="font-semibold text-amber-200">0 / 1,200</span>
+                    </div>
+                    <div class="w-full h-3.5 bg-slate-950/85 rounded-full overflow-hidden p-0.5 border border-purple-500/35">
+                        <div id="ui-progress-bar" class="h-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-amber-400 rounded-full transition-all duration-500 ease-out" style="width: 0%;"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Barra de Herramientas (Pista y Reiniciar) -->
+            <div class="w-full flex items-center gap-2.5">
+                <button id="btn-hint" class="btn-mystic flex-1 py-2.5 lg:py-3 px-4 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4 text-amber-300" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"></path>
+                    </svg>
+                    <span>Pista</span>
+                </button>
+
+                <button id="btn-restart-ingame" class="glass-panel hover:bg-purple-900/40 py-2.5 lg:py-3 px-4 rounded-xl font-semibold text-sm text-purple-200 hover:text-white transition flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    <span>Reiniciar</span>
+                </button>
+            </div>
+
+            <!-- Mensaje de estado / Notificación dinámica -->
+            <div id="status-banner" class="min-h-[1.75rem] flex items-center justify-center text-center text-sm font-bold text-amber-300 tracking-wide transition-opacity duration-300 opacity-0 bg-amber-500/10 border border-amber-400/30 rounded-xl px-3 py-1">
+                ¡Mezclando cristales!
+            </div>
+        </aside>
+
+        <!-- Área Principal del Tablero de Juego 10x10 -->
+        <section class="flex items-center justify-center">
+            <div class="board-frame" id="board-frame">
+                <div id="game-board">
+                    <!-- Fondo de cuadrícula generado por JS -->
+                    <div class="grid-bg" id="grid-bg"></div>
+                    <!-- Contenedor de gemas -->
+                    <div id="gems-container" class="absolute inset-0"></div>
+                    <!-- Capa de partículas y textos flotantes -->
+                    <div id="fx-layer"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- MODAL: Pantalla de Inicio -->
+    <div id="modal-start" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="glass-panel max-w-md w-full rounded-3xl p-6 sm:p-8 text-center border-2 border-purple-500/40 shadow-2xl">
+            <div class="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center shadow-lg shadow-purple-500/40">
+                <!-- Icono diamante brillante -->
+                <svg class="w-12 h-12 text-white" viewBox="0 0 64 64" fill="none">
+                    <polygon points="32,6 54,22 32,58 10,22" fill="url(#logoGrad)" stroke="#fff" stroke-width="2.5"/>
+                    <polygon points="32,6 42,22 32,58 22,22" fill="rgba(255,255,255,0.25)"/>
+                    <line x1="10" y1="22" x2="54" y2="22" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+                    <defs>
+                        <linearGradient id="logoGrad" x1="10" y1="6" x2="54" y2="58">
+                            <stop offset="0%" stop-color="#38bdf8"/>
+                            <stop offset="50%" stop-color="#c084fc"/>
+                            <stop offset="100%" stop-color="#f472b6"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+            </div>
+            <h2 class="font-mystic text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-white to-purple-200 mb-2">
+                CUEVA DE CRISTALES
+            </h2>
+            <p class="text-purple-200/90 text-sm mb-6 leading-relaxed">
+                Explora las profundidades místicas, alinea gemas mágicas y desata reacciones en cadena antes de quedarte sin turnos.
+            </p>
+            
+            <div class="bg-slate-950/60 rounded-2xl p-4 mb-6 text-left text-xs text-purple-200 space-y-2 border border-purple-500/20">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0"></span>
+                    <span><strong>Combina 3:</strong> Elimina gemas y suma puntos.</span>
+                </div>
+                <div class="flex items-center gap-2.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0"></span>
+                    <span><strong>Combina 4:</strong> Crea una <em>Gema Explosiva</em> que destruye su entorno.</span>
+                </div>
+                <div class="flex items-center gap-2.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-fuchsia-400 shrink-0"></span>
+                    <span><strong>Combina 5:</strong> Crea un <em>Hiper-Cubo Arcoíris</em> que elimina todo un color.</span>
+                </div>
+            </div>
+
+            <button id="btn-start-game" class="btn-mystic w-full py-3.5 rounded-2xl font-extrabold text-lg text-white tracking-wide">
+                ¡COMENZAR AVENTURA!
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL: Cómo Jugar -->
+    <div id="modal-help" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="glass-panel max-w-md w-full rounded-3xl p-6 text-center border border-purple-500/40">
+            <h3 class="font-mystic text-2xl font-bold text-amber-300 mb-3">Reglas del Juego</h3>
+            <div class="text-left text-sm text-purple-100 space-y-3 mb-6">
+                <p>• <strong>Controles:</strong> Haz clic en una gema y luego en una adyacente, o simplemente desliza (arrastra) una gema hacia arriba, abajo, izquierda o derecha.</p>
+                <p>• <strong>Gemas Especiales:</strong> Al unir 4 gemas obtienes una gema rodeada de un aura brillante que explota en un área de 3x3 al combinarse. Al unir 5 obtienes una estrella arcoíris: intercámbiala con cualquier gema para eliminar todas las de ese color.</p>
+                <p>• <strong>Niveles:</strong> Al llenar la barra de progreso subes de nivel y recibes <strong>+10 turnos adicionales</strong>.</p>
+            </div>
+            <button id="btn-close-help" class="btn-mystic w-full py-3 rounded-xl font-bold text-white">
+                Entendido
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL: Game Over -->
+    <div id="modal-gameover" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="glass-panel max-w-sm w-full rounded-3xl p-7 text-center border-2 border-rose-500/40 shadow-2xl">
+            <div class="w-16 h-16 mx-auto mb-3 rounded-full bg-rose-500/20 border border-rose-400/50 flex items-center justify-center text-rose-300">
+                <svg class="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <h2 class="font-mystic text-3xl font-black text-white mb-1">FIN DEL JUEGO</h2>
+            <p class="text-purple-300 text-sm mb-5">Te has quedado sin movimientos disponibles.</p>
+
+            <div class="bg-slate-950/70 rounded-2xl p-4 mb-6 space-y-2 border border-purple-500/20">
+                <div class="flex justify-between text-sm">
+                    <span class="text-purple-300">Puntuación Final:</span>
+                    <span id="final-score" class="font-extrabold text-amber-300 text-lg">0</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-purple-300">Nivel Alcanzado:</span>
+                    <span id="final-level" class="font-bold text-white">1</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-purple-300">Récord Personal:</span>
+                    <span id="final-best" class="font-bold text-cyan-300">0</span>
+                </div>
+            </div>
+
+            <button id="btn-play-again" class="btn-mystic w-full py-3.5 rounded-2xl font-extrabold text-base text-white">
+                JUGAR DE NUEVO
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * ============================================================================
+         * DEFINICIÓN DE GEMAS (7 Tipos con formas, contrastes y brillos reforzados)
+         * ============================================================================
+         */
+        const GEM_TYPES = [
+            {
+                id: 0,
+                name: 'Rubí',
+                color: '#ef4444',
+                svg: `<svg viewBox="0 0 64 64" class="w-full h-full">
+                    <defs>
+                        <linearGradient id="g0" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#fecaca"/>
+                            <stop offset="38%" stop-color="#ef4444"/>
+                            <stop offset="100%" stop-color="#7f1d1d"/>
+                        </linearGradient>
+                    </defs>
+                    <polygon points="32,2 60,19 60,45 32,62 4,45 4,19" fill="url(#g0)" stroke="#fee2e2" stroke-width="2.6"/>
+                    <polygon points="32,11 50,22 50,42 32,53 14,42 14,22" fill="rgba(255,255,255,0.24)"/>
+                    <polygon points="32,2 50,22 32,11 14,22" fill="rgba(255,255,255,0.55)"/>
+                    <polygon points="4,19 14,22 14,42 4,45" fill="rgba(0,0,0,0.18)"/>
+                </svg>`
+            },
+            {
+                id: 1,
+                name: 'Zafiro',
+                color: '#3b82f6',
+                svg: `<svg viewBox="0 0 64 64" class="w-full h-full">
+                    <defs>
+                        <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#dbeafe"/>
+                            <stop offset="42%" stop-color="#2563eb"/>
+                            <stop offset="100%" stop-color="#172554"/>
+                        </linearGradient>
+                    </defs>
+                    <circle cx="32" cy="32" r="29" fill="url(#g1)" stroke="#dbeafe" stroke-width="2.6"/>
+                    <polygon points="32,8 53,32 32,56 11,32" fill="rgba(255,255,255,0.26)"/>
+                    <polygon points="32,16 44,32 32,48 20,32" fill="rgba(255,255,255,0.18)"/>
+                    <ellipse cx="23" cy="18" rx="9" ry="4.5" transform="rotate(-30 23 18)" fill="rgba(255,255,255,0.65)"/>
+                </svg>`
+            },
+            {
+                id: 2,
+                name: 'Esmeralda',
+                color: '#10b981',
+                svg: `<svg viewBox="0 0 64 64" class="w-full h-full">
+                    <defs>
+                        <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#a7f3d0"/>
+                            <stop offset="42%" stop-color="#059669"/>
+                            <stop offset="100%" stop-color="#022c22"/>
+                        </linearGradient>
+                    </defs>
+                    <polygon points="17,3 47,3 61,17 61,47 47,61 17,61 3,47 3,17" fill="url(#g2)" stroke="#d1fae5" stroke-width="2.6"/>
+                    <rect x="15" y="15" width="34" height="34" rx="3" fill="rgba(255,255,255,0.22)" stroke="rgba(255,255,255,0.35)" stroke-width="1.2"/>
+                    <polygon points="17,3 47,3 42,15 22,15" fill="rgba(255,255,255,0.58)"/>
+                </svg>`
+            },
+            {
+                id: 3,
+                name: 'Topacio',
+                color: '#f59e0b',
+                svg: `<svg viewBox="0 0 64 64" class="w-full h-full">
+                    <defs>
+                        <linearGradient id="g3" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#fef3c7"/>
+                            <stop offset="42%" stop-color="#f59e0b"/>
+                            <stop offset="100%" stop-color="#78350f"/>
+                        </linearGradient>
+                    </defs>
+                    <polygon points="32,2 62,32 32,62 2,32" fill="url(#g3)" stroke="#fef9c3" stroke-width="2.6"/>
+                    <polygon points="32,13 51,32 32,51 13,32" fill="rgba(255,255,255,0.28)"/>
+                    <polygon points="32,2 51,32 32,13" fill="rgba(255,255,255,0.65)"/>
+                    <polygon points="32,2 13,32 32,13" fill="rgba(255,255,255,0.4)"/>
+                </svg>`
+            },
+            {
+                id: 4,
+                name: 'Amatista',
+                color: '#a855f7',
+                svg: `<svg viewBox="0 0 64 64" class="w-full h-full">
+                    <defs>
+                        <linearGradient id="g4" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#f3e8ff"/>
+                            <stop offset="42%" stop-color="#9333ea"/>
+                            <stop offset="100%" stop-color="#2e1065"/>
+                        </linearGradient>
+                    </defs>
+                    <polygon points="32,3 61,24 50,60 14,60 3,24" fill="url(#g4)" stroke="#f3e8ff" stroke-width="2.6"/>
+                    <polygon points="32,14 49,26 42,49 22,49 15,26" fill="rgba(255,255,255,0.24)"/>
+                    <polygon points="32,3 61,24 49,26 32,14" fill="rgba(255,255,255,0.55)"/>
+                </svg>`
+            },
+            {
+                id: 5,
+                name: 'Aguamarina',
+                color: '#06b6d4',
+                svg: `<svg viewBox="0 0 64 64" class="w-full h-full">
+                    <defs>
+                        <linearGradient id="g5" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#cffafe"/>
+                            <stop offset="42%" stop-color="#0891b2"/>
+                            <stop offset="100%" stop-color="#083344"/>
+                        </linearGradient>
+                    </defs>
+                    <polygon points="32,3 60,56 4,56" fill="url(#g5)" stroke="#ecfeff" stroke-width="2.6" stroke-linejoin="round"/>
+                    <polygon points="32,18 48,48 16,48" fill="rgba(255,255,255,0.25)"/>
+                    <polygon points="32,3 48,48 32,18" fill="rgba(255,255,255,0.55)"/>
+                </svg>`
+            },
+            {
+                id: 6,
+                name: 'Cuarzo Rosa',
+                color: '#ec4899',
+                svg: `<svg viewBox="0 0 64 64" class="w-full h-full">
+                    <defs>
+                        <linearGradient id="g6" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#fce7f3"/>
+                            <stop offset="42%" stop-color="#db2777"/>
+                            <stop offset="100%" stop-color="#500724"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M32 60 C32 60 5 42 5 21 C5 11 13 4 22 4 C27 4 31 8 32 11 C33 8 37 4 42 4 C51 4 59 11 59 21 C59 42 32 60 32 60 Z" fill="url(#g6)" stroke="#fce7f3" stroke-width="2.6"/>
+                    <ellipse cx="20" cy="17" rx="7" ry="4" transform="rotate(-25 20 17)" fill="rgba(255,255,255,0.65)"/>
+                </svg>`
+            }
+        ];
+
+        // SVG para la Hiper-gema Arcoíris (Match de 5)
+        const HYPERCUBE_SVG = `
+            <svg viewBox="0 0 64 64" class="w-full h-full">
+                <defs>
+                    <radialGradient id="hyperGrad" cx="50%" cy="50%" r="50%">
+                        <stop offset="0%" stop-color="#ffffff"/>
+                        <stop offset="32%" stop-color="#fde047"/>
+                        <stop offset="68%" stop-color="#ec4899"/>
+                        <stop offset="100%" stop-color="#3b82f6"/>
+                    </radialGradient>
+                </defs>
+                <polygon points="32,1 41,21 63,32 41,43 32,63 23,43 1,32 23,21" fill="url(#hyperGrad)" stroke="#ffffff" stroke-width="2.6"/>
+                <polygon points="32,10 38,24 54,32 38,40 32,54 26,40 10,32 26,24" fill="rgba(255,255,255,0.35)"/>
+                <circle cx="32" cy="32" r="10" fill="#ffffff" opacity="0.95"/>
+            </svg>
+        `;
+
+        /**
+         * ============================================================================
+         * SINTETIZADOR DE EFECTOS DE SONIDO (Web Audio API - Sin archivos externos)
+         * ============================================================================
+         */
+        class SoundEffects {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) {
+                        this.ctx = new AudioCtx();
+                    }
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            toggleMute() {
+                this.muted = !this.muted;
+                return this.muted;
+            }
+
+            playTone(freq, type = 'sine', duration = 0.15, vol = 0.15, delay = 0) {
+                if (this.muted) return;
+                this.init();
+                if (!this.ctx) return;
+
+                try {
+                    const now = this.ctx.currentTime + delay;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, now);
+
+                    gain.gain.setValueAtTime(0.001, now);
+                    gain.gain.linearRampToValueAtTime(vol, now + 0.015);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + duration + 0.02);
+                } catch (err) {
+                    // Ignorar errores de contexto de audio antes de interacción del usuario
+                }
+            }
+
+            select() {
+                this.playTone(580, 'sine', 0.09, 0.12);
+            }
+
+            swap() {
+                this.playTone(340, 'triangle', 0.12, 0.12);
+                this.playTone(460, 'triangle', 0.12, 0.1, 0.06);
+            }
+
+            invalid() {
+                this.playTone(190, 'sawtooth', 0.16, 0.1);
+                this.playTone(145, 'sawtooth', 0.18, 0.1, 0.08);
+            }
+
+            match(combo = 1) {
+                const baseFreq = 440 * Math.pow(1.09, Math.min(combo - 1, 8));
+                this.playTone(baseFreq, 'sine', 0.22, 0.16);
+                this.playTone(baseFreq * 1.25, 'triangle', 0.25, 0.13, 0.06);
+                this.playTone(baseFreq * 1.5, 'sine', 0.3, 0.12, 0.12);
+            }
+
+            explosion() {
+                this.playTone(130, 'sawtooth', 0.35, 0.2);
+                this.playTone(85, 'square', 0.4, 0.18, 0.04);
+            }
+
+            hypercube() {
+                const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5];
+                notes.forEach((n, idx) => {
+                    this.playTone(n, 'sine', 0.3, 0.14, idx * 0.05);
+                });
+            }
+
+            levelUp() {
+                const fanfare = [523.25, 659.25, 783.99, 1046.5];
+                fanfare.forEach((n, idx) => {
+                    this.playTone(n, 'triangle', 0.28, 0.16, idx * 0.09);
+                });
+            }
+
+            gameOver() {
+                const notes = [392.0, 349.23, 329.63, 261.63];
+                notes.forEach((n, idx) => {
+                    this.playTone(n, 'sawtooth', 0.35, 0.12, idx * 0.16);
+                });
+            }
+        }
+
+        /**
+         * ============================================================================
+         * CLASE PRINCIPAL DEL JUEGO BEJEWELED / MATCH-3 (TABLERO 10x10)
+         * ============================================================================
+         */
+        class CrystalCaveGame {
+            constructor() {
+                this.rows = 10;
+                this.cols = 10;
+                this.cellPercent = 100 / this.cols; // 10% por celda
+                this.grid = []; // Matriz 10x10 de objetos gema
+                this.sound = new SoundEffects();
+
+                // Estado de la partida
+                this.score = 0;
+                this.level = 1;
+                this.moves = 30;
+                this.levelStartScore = 0;
+                this.targetScore = 1200;
+                this.bestScore = parseInt(localStorage.getItem('crystalCaveBest') || '0', 10);
+
+                // Control de interacción y animaciones
+                this.isProcessing = false;
+                this.isGameOver = false;
+                this.selectedGem = null;
+                this.touchStart = null;
+                this.hintTimer = null;
+                this.gemUidCounter = 0;
+
+                // Referencias al DOM
+                this.boardEl = document.getElementById('game-board');
+                this.boardFrameEl = document.getElementById('board-frame');
+                this.gemsContainer = document.getElementById('gems-container');
+                this.fxLayer = document.getElementById('fx-layer');
+                this.statusBanner = document.getElementById('status-banner');
+
+                this.initGridBackground();
+                this.bindEvents();
+            }
+
+            // Genera las 100 celdas decorativas de fondo
+            initGridBackground() {
+                const bg = document.getElementById('grid-bg');
+                bg.innerHTML = '';
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c < this.cols; c++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'grid-cell';
+                        // Alternar tono ajedrezado
+                        if ((r + c) % 2 === 1) {
+                            cell.style.background = 'rgba(255, 255, 255, 0.025)';
+                        }
+                        bg.appendChild(cell);
+                    }
+                }
+            }
+
+            // Configuración de eventos de usuario
+            bindEvents() {
+                // Botones de modales e interfaz
+                document.getElementById('btn-start-game').addEventListener('click', () => {
+                    document.getElementById('modal-start').classList.add('hidden');
+                    this.sound.init();
+                    this.startNewGame();
+                });
+
+                document.getElementById('btn-play-again').addEventListener('click', () => {
+                    document.getElementById('modal-gameover').classList.add('hidden');
+                    document.getElementById('modal-gameover').classList.remove('flex');
+                    this.startNewGame();
+                });
+
+                document.getElementById('btn-restart-ingame').addEventListener('click', () => {
+                    if (!this.isProcessing) {
+                        this.startNewGame();
+                    }
+                });
+
+                document.getElementById('btn-hint').addEventListener('click', () => {
+                    if (!this.isProcessing && !this.isGameOver) {
+                        this.showHint();
+                    }
+                });
+
+                document.getElementById('btn-sound').addEventListener('click', () => {
+                    const isMuted = this.sound.toggleMute();
+                    document.getElementById('icon-sound-on').classList.toggle('hidden', isMuted);
+                    document.getElementById('icon-sound-off').classList.toggle('hidden', !isMuted);
+                });
+
+                document.getElementById('btn-help').addEventListener('click', () => {
+                    const modal = document.getElementById('modal-help');
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                });
+
+                document.getElementById('btn-close-help').addEventListener('click', () => {
+                    const modal = document.getElementById('modal-help');
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                });
+
+                // Eventos de puntero unificados (Mouse y Touch/Swipe) en el tablero
+                this.boardEl.addEventListener('pointerdown', (e) => this.handlePointerDown(e));
+                window.addEventListener('pointerup', (e) => this.handlePointerUp(e));
+            }
+
+            // Inicia o reinicia una partida completa
+            startNewGame() {
+                this.score = 0;
+                this.level = 1;
+                this.moves = 30;
+                this.levelStartScore = 0;
+                this.targetScore = 1200;
+                this.isProcessing = false;
+                this.isGameOver = false;
+                this.selectedGem = null;
+
+                this.updateUI();
+                this.generateInitialBoard();
+                this.resetHintTimer();
+            }
+
+            // Genera un tablero sin combinaciones iniciales y con al menos un movimiento válido
+            generateInitialBoard() {
+                this.gemsContainer.innerHTML = '';
+                this.grid = [];
+
+                let validBoard = false;
+                while (!validBoard) {
+                    this.grid = Array.from({ length: this.rows }, () => Array(this.cols).fill(null));
+                    for (let r = 0; r < this.rows; r++) {
+                        for (let c = 0; c < this.cols; c++) {
+                            let availableTypes = [0, 1, 2, 3, 4, 5, 6];
+                            // Evitar 3 seguidas horizontalmente
+                            if (c >= 2 && this.grid[r][c - 1].type === this.grid[r][c - 2].type) {
+                                availableTypes = availableTypes.filter(t => t !== this.grid[r][c - 1].type);
+                            }
+                            // Evitar 3 seguidas verticalmente
+                            if (r >= 2 && this.grid[r - 1][c].type === this.grid[r - 2][c].type) {
+                                availableTypes = availableTypes.filter(t => t !== this.grid[r - 1][c].type);
+                            }
+                            const chosenType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+                            this.grid[r][c] = {
+                                uid: ++this.gemUidCounter,
+                                type: chosenType,
+                                special: null, // 'flame' o 'hyper'
+                                r,
+                                c,
+                                el: null
+                            };
+                        }
+                    }
+                    if (this.findAllValidMoves().length > 0) {
+                        validBoard = true;
+                    }
+                }
+
+                // Renderizar las gemas con animación de caída inicial
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c < this.cols; c++) {
+                        const gem = this.grid[r][c];
+                        this.createGemElement(gem, r - this.rows);
+                        requestAnimationFrame(() => {
+                            this.positionGemElement(gem);
+                        });
+                    }
+                }
+            }
+
+            // Crea el nodo DOM para una gema
+            createGemElement(gem, startRow = gem.r) {
+                const el = document.createElement('div');
+                el.className = 'gem';
+                el.dataset.uid = gem.uid;
+
+                const inner = document.createElement('div');
+                inner.className = 'gem-inner';
+                inner.innerHTML = gem.special === 'hyper' ? HYPERCUBE_SVG : GEM_TYPES[gem.type].svg;
+                el.appendChild(inner);
+
+                if (gem.special === 'flame') {
+                    el.classList.add('gem-special-flame');
+                } else if (gem.special === 'hyper') {
+                    el.classList.add('gem-hypercube');
+                }
+
+                // Posición inicial (puede estar arriba del tablero para caer)
+                el.style.transform = `translate(${gem.c * 100}%, ${startRow * 100}%)`;
+                this.gemsContainer.appendChild(el);
+                gem.el = el;
+            }
+
+            // Actualiza visualmente la posición CSS de la gema
+            positionGemElement(gem) {
+                if (!gem || !gem.el) return;
+                gem.el.style.transform = `translate(${gem.c * 100}%, ${gem.r * 100}%)`;
+            }
+
+            // Obtiene fila y columna a partir de coordenadas de pantalla
+            getCellFromEvent(e) {
+                const rect = this.boardEl.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const c = Math.floor((x / rect.width) * this.cols);
+                const r = Math.floor((y / rect.height) * this.rows);
+                if (r >= 0 && r < this.rows && c >= 0 && c < this.cols) {
+                    return { r, c };
+                }
+                return null;
+            }
+
+            // Manejo de inicio de clic o toque
+            handlePointerDown(e) {
+                if (this.isProcessing || this.isGameOver) return;
+                this.sound.init();
+                this.clearHints();
+                this.resetHintTimer();
+
+                const cell = this.getCellFromEvent(e);
+                if (!cell) return;
+
+                this.touchStart = {
+                    x: e.clientX,
+                    y: e.clientY,
+                    r: cell.r,
+                    c: cell.c
+                };
+
+                const clickedGem = this.grid[cell.r][cell.c];
+                if (!clickedGem) return;
+
+                if (!this.selectedGem) {
+                    this.selectGem(clickedGem);
+                } else if (this.selectedGem === clickedGem) {
+                    this.deselectGem();
+                } else if (this.areAdjacent(this.selectedGem, clickedGem)) {
+                    const first = this.selectedGem;
+                    this.deselectGem();
+                    this.attemptSwap(first, clickedGem);
+                } else {
+                    this.selectGem(clickedGem);
+                }
+            }
+
+            // Manejo de soltar clic o terminar gesto de deslizamiento (Swipe)
+            handlePointerUp(e) {
+                if (!this.touchStart || this.isProcessing || this.isGameOver) {
+                    this.touchStart = null;
+                    return;
+                }
+
+                const dx = e.clientX - this.touchStart.x;
+                const dy = e.clientY - this.touchStart.y;
+                const threshold = 24; // Píxeles mínimos para considerar swipe
+
+                if (Math.abs(dx) > threshold || Math.abs(dy) > threshold) {
+                    const { r, c } = this.touchStart;
+                    let targetR = r;
+                    let targetC = c;
+
+                    if (Math.abs(dx) > Math.abs(dy)) {
+                        targetC += dx > 0 ? 1 : -1;
+                    } else {
+                        targetR += dy > 0 ? 1 : -1;
+                    }
+
+                    if (targetR >= 0 && targetR < this.rows && targetC >= 0 && targetC < this.cols) {
+                        const gemA = this.grid[r][c];
+                        const gemB = this.grid[targetR][targetC];
+                        if (gemA && gemB) {
+                            this.deselectGem();
+                            this.attemptSwap(gemA, gemB);
+                        }
+                    }
+                }
+                this.touchStart = null;
+            }
+
+            selectGem(gem) {
+                this.deselectGem();
+                this.selectedGem = gem;
+                if (gem.el) gem.el.classList.add('selected');
+                this.sound.select();
+            }
+
+            deselectGem() {
+                if (this.selectedGem && this.selectedGem.el) {
+                    this.selectedGem.el.classList.remove('selected');
+                }
+                this.selectedGem = null;
+            }
+
+            areAdjacent(g1, g2) {
+                return Math.abs(g1.r - g2.r) + Math.abs(g1.c - g2.c) === 1;
+            }
+
+            // Intercambia dos gemas y verifica si el movimiento es válido
+            async attemptSwap(gemA, gemB) {
+                this.isProcessing = true;
+                this.clearHints();
+                this.sound.swap();
+
+                // Intercambiar en matriz y animar
+                this.swapInGrid(gemA, gemB);
+                await this.wait(250);
+
+                // Caso especial: Hiper-gema arcoíris intercambiada con cualquier gema
+                if (gemA.special === 'hyper' || gemB.special === 'hyper') {
+                    this.moves--;
+                    this.updateUI();
+                    await this.activateHyperSwap(gemA, gemB);
+                    await this.processCascadeLoop(1);
+                    this.finishTurn();
+                    return;
+                }
+
+                // Verificar combinaciones normales
+                const matches = this.findMatches();
+                if (matches.length === 0) {
+                    // Movimiento inválido: regresar gemas a su lugar
+                    this.sound.invalid();
+                    this.swapInGrid(gemA, gemB);
+                    await this.wait(250);
+                    this.isProcessing = false;
+                    this.resetHintTimer();
+                    return;
+                }
+
+                // Movimiento válido: consumir turno y procesar cascadas
+                this.moves--;
+                this.updateUI();
+                await this.processCascadeLoop(1, [gemA, gemB]);
+                this.finishTurn();
+            }
+
+            swapInGrid(gemA, gemB) {
+                const tempR = gemA.r;
+                const tempC = gemA.c;
+
+                this.grid[gemA.r][gemA.c] = gemB;
+                this.grid[gemB.r][gemB.c] = gemA;
+
+                gemA.r = gemB.r;
+                gemA.c = gemB.c;
+                gemB.r = tempR;
+                gemB.c = tempC;
+
+                this.positionGemElement(gemA);
+                this.positionGemElement(gemB);
+            }
+
+            // Activa el poder de la Hiper-Gema Arcoíris
+            async activateHyperSwap(gemA, gemB) {
+                this.sound.hypercube();
+                this.shakeBoard();
+
+                const hyperGem = gemA.special === 'hyper' ? gemA : gemB;
+                const otherGem = hyperGem === gemA ? gemB : gemA;
+
+                const toDestroy = new Set([hyperGem]);
+
+                if (otherGem.special === 'hyper') {
+                    // ¡Dos hiper-gemas juntas destruyen TODO el tablero!
+                    for (let r = 0; r < this.rows; r++) {
+                        for (let c = 0; c < this.cols; c++) {
+                            if (this.grid[r][c]) toDestroy.add(this.grid[r][c]);
+                        }
+                    }
+                } else {
+                    // Destruye todas las gemas del color de la otra gema
+                    const targetColor = otherGem.type;
+                    toDestroy.add(otherGem);
+                    for (let r = 0; r < this.rows; r++) {
+                        for (let c = 0; c < this.cols; c++) {
+                            const g = this.grid[r][c];
+                            if (g && g.type === targetColor) {
+                                toDestroy.add(g);
+                            }
+                        }
+                    }
+                }
+
+                await this.destroyGems(Array.from(toDestroy), 2);
+                await this.applyGravityAndRefill();
+            }
+
+            // Detecta todas las líneas horizontales y verticales de 3 o más gemas iguales
+            findMatches() {
+                const matchGroups = [];
+                const visitedH = Array.from({ length: this.rows }, () => Array(this.cols).fill(false));
+                const visitedV = Array.from({ length: this.rows }, () => Array(this.cols).fill(false));
+
+                // Horizontales
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c < this.cols - 2; c++) {
+                        if (visitedH[r][c]) continue;
+                        const gem = this.grid[r][c];
+                        if (!gem || gem.special === 'hyper') continue;
+
+                        const line = [gem];
+                        let nextC = c + 1;
+                        while (nextC < this.cols && this.grid[r][nextC] && this.grid[r][nextC].type === gem.type && this.grid[r][nextC].special !== 'hyper') {
+                            line.push(this.grid[r][nextC]);
+                            nextC++;
+                        }
+
+                        if (line.length >= 3) {
+                            line.forEach(g => visitedH[g.r][g.c] = true);
+                            matchGroups.push(line);
+                        }
+                    }
+                }
+
+                // Verticales
+                for (let c = 0; c < this.cols; c++) {
+                    for (let r = 0; r < this.rows - 2; r++) {
+                        if (visitedV[r][c]) continue;
+                        const gem = this.grid[r][c];
+                        if (!gem || gem.special === 'hyper') continue;
+
+                        const line = [gem];
+                        let nextR = r + 1;
+                        while (nextR < this.rows && this.grid[nextR][c] && this.grid[nextR][c].type === gem.type && this.grid[nextR][c].special !== 'hyper') {
+                            line.push(this.grid[nextR][c]);
+                            nextR++;
+                        }
+
+                        if (line.length >= 3) {
+                            line.forEach(g => visitedV[g.r][g.c] = true);
+                            matchGroups.push(line);
+                        }
+                    }
+                }
+
+                return matchGroups;
+            }
+
+            // Bucle principal de destrucción, creación de especiales, gravedad y combos
+            async processCascadeLoop(startCombo = 1, swappedGems = []) {
+                let combo = startCombo;
+                let matchGroups = this.findMatches();
+
+                while (matchGroups.length > 0) {
+                    this.sound.match(combo);
+                    if (combo >= 2) {
+                        this.shakeBoard();
+                    }
+
+                    const gemsToDestroy = new Set();
+                    const specialsToSpawn = [];
+
+                    // Analizar cada grupo combinado para puntuación y creación de gemas especiales
+                    matchGroups.forEach(group => {
+                        group.forEach(g => gemsToDestroy.add(g));
+
+                        if (group.length >= 4) {
+                            // Elegir posición donde aparecerá la gema especial (preferiblemente la movida por el jugador)
+                            let spawnTarget = group.find(g => swappedGems.includes(g)) || group[Math.floor(group.length / 2)];
+                            const specialType = group.length >= 5 ? 'hyper' : 'flame';
+                            specialsToSpawn.push({
+                                r: spawnTarget.r,
+                                c: spawnTarget.c,
+                                type: spawnTarget.type,
+                                special: specialType
+                            });
+                        }
+                    });
+
+                    // Propagar explosiones si alguna gema destruida era especial ('flame')
+                    let addedExplosion = true;
+                    while (addedExplosion) {
+                        addedExplosion = false;
+                        for (const gem of Array.from(gemsToDestroy)) {
+                            if (gem.special === 'flame' && !gem._exploded) {
+                                gem._exploded = true;
+                                addedExplosion = true;
+                                this.sound.explosion();
+                                this.spawnShockwave(gem.r, gem.c);
+                                // Destruir área 3x3 alrededor
+                                for (let dr = -1; dr <= 1; dr++) {
+                                    for (let dc = -1; dc <= 1; dc++) {
+                                        const nr = gem.r + dr;
+                                        const nc = gem.c + dc;
+                                        if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols && this.grid[nr][nc]) {
+                                            gemsToDestroy.add(this.grid[nr][nc]);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Destruir gemas marcadas
+                    await this.destroyGems(Array.from(gemsToDestroy), combo);
+
+                    // Colocar nuevas gemas especiales generadas en este paso
+                    specialsToSpawn.forEach(sp => {
+                        if (!this.grid[sp.r][sp.c]) {
+                            const newSpecial = {
+                                uid: ++this.gemUidCounter,
+                                type: sp.type,
+                                special: sp.special,
+                                r: sp.r,
+                                c: sp.c,
+                                el: null
+                            };
+                            this.grid[sp.r][sp.c] = newSpecial;
+                            this.createGemElement(newSpecial, sp.r);
+                        }
+                    });
+
+                    // Hacer caer las gemas superiores y rellenar espacios vacíos
+                    await this.applyGravityAndRefill();
+
+                    combo++;
+                    swappedGems = []; // Solo aplica en el primer paso del intercambio
+                    matchGroups = this.findMatches();
+                }
+            }
+
+            // Elimina visualmente un conjunto de gemas y suma puntos
+            async destroyGems(gemsList, combo) {
+                if (gemsList.length === 0) return;
+
+                // Calcular puntos con multiplicador de combo
+                const pointsEarned = gemsList.length * 50 * combo;
+                this.score += pointsEarned;
+
+                // Calcular centro promedio para mostrar texto flotante de puntos
+                let avgR = 0, avgC = 0;
+                gemsList.forEach(g => {
+                    avgR += g.r;
+                    avgC += g.c;
+                    this.spawnParticles(g.r, g.c, GEM_TYPES[g.type].color);
+                    if (g.el) g.el.classList.add('matched');
+                    this.grid[g.r][g.c] = null;
+                });
+
+                avgR /= gemsList.length;
+                avgC /= gemsList.length;
+                const label = combo > 1 ? `+${pointsEarned} (Combo x${combo}!)` : `+${pointsEarned}`;
+                this.spawnFloatingScore(avgR, avgC, label);
+
+                this.checkLevelProgress();
+                this.updateUI();
+
+                await this.wait(260);
+
+                // Remover elementos del DOM
+                gemsList.forEach(g => {
+                    if (g.el && g.el.parentNode) {
+                        g.el.parentNode.removeChild(g.el);
+                    }
+                });
+            }
+
+            // Aplica gravedad columna por columna y genera nuevas gemas desde arriba
+            async applyGravityAndRefill() {
+                for (let c = 0; c < this.cols; c++) {
+                    let emptySpots = 0;
+
+                    // De abajo hacia arriba: bajar gemas existentes
+                    for (let r = this.rows - 1; r >= 0; r--) {
+                        if (this.grid[r][c] === null) {
+                            emptySpots++;
+                        } else if (emptySpots > 0) {
+                            const gem = this.grid[r][c];
+                            const newR = r + emptySpots;
+                            this.grid[newR][c] = gem;
+                            this.grid[r][c] = null;
+                            gem.r = newR;
+                            this.positionGemElement(gem);
+                        }
+                    }
+
+                    // Generar nuevas gemas en los espacios vacíos superiores
+                    for (let i = 0; i < emptySpots; i++) {
+                        const targetR = emptySpots - 1 - i;
+                        const spawnStartR = -1 - i;
+                        const randomType = Math.floor(Math.random() * GEM_TYPES.length);
+
+                        const newGem = {
+                            uid: ++this.gemUidCounter,
+                            type: randomType,
+                            special: null,
+                            r: targetR,
+                            c: c,
+                            el: null
+                        };
+
+                        this.grid[targetR][c] = newGem;
+                        this.createGemElement(newGem, spawnStartR);
+
+                        // Forzar reflow para que la transición CSS anime la caída
+                        newGem.el.getBoundingClientRect();
+                        this.positionGemElement(newGem);
+                    }
+                }
+
+                await this.wait(280);
+            }
+
+            // Verifica si el jugador alcanzó la meta para subir de nivel
+            checkLevelProgress() {
+                while (this.score >= this.targetScore) {
+                    this.level++;
+                    this.levelStartScore = this.targetScore;
+                    // Incremento progresivo de dificultad
+                    this.targetScore += 1200 + (this.level - 1) * 550;
+                    this.moves += 10; // Recompensa de turnos extra
+                    this.sound.levelUp();
+                    this.showBanner(`¡NIVEL ${this.level}! +10 Turnos Extra`);
+                }
+            }
+
+            // Evalúa el fin del turno: bloqueo de tablero o Game Over
+            async finishTurn() {
+                if (this.moves <= 0) {
+                    this.triggerGameOver();
+                    return;
+                }
+
+                // Comprobar si existen movimientos válidos en el tablero
+                if (this.findAllValidMoves().length === 0) {
+                    this.showBanner('¡Sin movimientos! Mezclando cristales...');
+                    await this.wait(700);
+                    await this.shuffleBoard();
+                }
+
+                this.isProcessing = false;
+                this.resetHintTimer();
+            }
+
+            // Mezcla el tablero automáticamente manteniendo las gemas actuales
+            async shuffleBoard() {
+                let valid = false;
+                while (!valid) {
+                    const allGems = [];
+                    for (let r = 0; r < this.rows; r++) {
+                        for (let c = 0; c < this.cols; c++) {
+                            allGems.push(this.grid[r][c]);
+                        }
+                    }
+
+                    // Algoritmo Fisher-Yates
+                    for (let i = allGems.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [allGems[i], allGems[j]] = [allGems[j], allGems[i]];
+                    }
+
+                    let idx = 0;
+                    for (let r = 0; r < this.rows; r++) {
+                        for (let c = 0; c < this.cols; c++) {
+                            const g = allGems[idx++];
+                            g.r = r;
+                            g.c = c;
+                            this.grid[r][c] = g;
+                        }
+                    }
+
+                    // Asegurar que no haya matches instantáneos y sí haya al menos 1 jugada válida
+                    if (this.findMatches().length === 0 && this.findAllValidMoves().length > 0) {
+                        valid = true;
+                    }
+                }
+
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c < this.cols; c++) {
+                        this.positionGemElement(this.grid[r][c]);
+                    }
+                }
+                await this.wait(350);
+            }
+
+            // Busca todos los pares adyacentes que producen una combinación válida
+            findAllValidMoves() {
+                const validMoves = [];
+
+                for (let r = 0; r < this.rows; r++) {
+                    for (let c = 0; c < this.cols; c++) {
+                        const gem = this.grid[r][c];
+                        if (!gem) continue;
+
+                        // Revisar derecha y abajo
+                        const neighbors = [];
+                        if (c + 1 < this.cols) neighbors.push(this.grid[r][c + 1]);
+                        if (r + 1 < this.rows) neighbors.push(this.grid[r + 1][c]);
+
+                        for (const neighbor of neighbors) {
+                            if (!neighbor) continue;
+
+                            // Si alguno es hiper-cubo, siempre es válido
+                            if (gem.special === 'hyper' || neighbor.special === 'hyper') {
+                                validMoves.push([gem, neighbor]);
+                                continue;
+                            }
+
+                            // Simular intercambio en memoria
+                            this.grid[r][c] = neighbor;
+                            this.grid[neighbor.r][neighbor.c] = gem;
+
+                            const hasMatch = this.checkQuickMatchAt(r, c) || this.checkQuickMatchAt(neighbor.r, neighbor.c);
+
+                            // Revertir simulación
+                            this.grid[r][c] = gem;
+                            this.grid[neighbor.r][neighbor.c] = neighbor;
+
+                            if (hasMatch) {
+                                validMoves.push([gem, neighbor]);
+                            }
+                        }
+                    }
+                }
+
+                return validMoves;
+            }
+
+            // Verificación rápida de línea de 3 alrededor de una coordenada
+            checkQuickMatchAt(r, c) {
+                const gem = this.grid[r][c];
+                if (!gem || gem.special === 'hyper') return false;
+                const t = gem.type;
+
+                // Horizontal
+                let countH = 1;
+                let left = c - 1;
+                while (left >= 0 && this.grid[r][left] && this.grid[r][left].type === t && this.grid[r][left].special !== 'hyper') {
+                    countH++; left--;
+                }
+                let right = c + 1;
+                while (right < this.cols && this.grid[r][right] && this.grid[r][right].type === t && this.grid[r][right].special !== 'hyper') {
+                    countH++; right++;
+                }
+                if (countH >= 3) return true;
+
+                // Vertical
+                let countV = 1;
+                let up = r - 1;
+                while (up >= 0 && this.grid[up][c] && this.grid[up][c].type === t && this.grid[up][c].special !== 'hyper') {
+                    countV++; up--;
+                }
+                let down = r + 1;
+                while (down < this.rows && this.grid[down][c] && this.grid[down][c].type === t && this.grid[down][c].special !== 'hyper') {
+                    countV++; down++;
+                }
+                return countV >= 3;
+            }
+
+            // Muestra una pista animada al jugador
+            showHint() {
+                this.clearHints();
+                const moves = this.findAllValidMoves();
+                if (moves.length > 0) {
+                    const chosenPair = moves[Math.floor(Math.random() * moves.length)];
+                    chosenPair.forEach(gem => {
+                        if (gem && gem.el) gem.el.classList.add('hint');
+                    });
+                }
+            }
+
+            clearHints() {
+                document.querySelectorAll('.gem.hint').forEach(el => el.classList.remove('hint'));
+            }
+
+            resetHintTimer() {
+                clearTimeout(this.hintTimer);
+                if (this.isGameOver) return;
+                // Sugerir pista automáticamente tras 6 segundos de inactividad
+                this.hintTimer = setTimeout(() => {
+                    if (!this.isProcessing && !this.isGameOver) {
+                        this.showHint();
+                    }
+                }, 6000);
+            }
+
+            // Pantalla de Game Over
+            triggerGameOver() {
+                this.isGameOver = true;
+                this.isProcessing = false;
+                clearTimeout(this.hintTimer);
+                this.sound.gameOver();
+
+                if (this.score > this.bestScore) {
+                    this.bestScore = this.score;
+                    localStorage.setItem('crystalCaveBest', this.bestScore.toString());
+                }
+
+                document.getElementById('final-score').textContent = this.score.toLocaleString('es-ES');
+                document.getElementById('final-level').textContent = this.level;
+                document.getElementById('final-best').textContent = this.bestScore.toLocaleString('es-ES');
+
+                const modal = document.getElementById('modal-gameover');
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+
+            // Actualiza marcadores y barra de progreso
+            updateUI() {
+                document.getElementById('ui-level').textContent = this.level;
+                document.getElementById('ui-score').textContent = this.score.toLocaleString('es-ES');
+                
+                const movesEl = document.getElementById('ui-moves');
+                movesEl.textContent = this.moves;
+                if (this.moves <= 5) {
+                    movesEl.classList.remove('text-cyan-300');
+                    movesEl.classList.add('text-rose-400', 'animate-pulse');
+                } else {
+                    movesEl.classList.add('text-cyan-300');
+                    movesEl.classList.remove('text-rose-400', 'animate-pulse');
+                }
+
+                const currentProgress = Math.max(0, this.score - this.levelStartScore);
+                const levelSpan = Math.max(1, this.targetScore - this.levelStartScore);
+                const pct = Math.min(100, Math.round((currentProgress / levelSpan) * 100));
+
+                document.getElementById('ui-progress-bar').style.width = `${pct}%`;
+                document.getElementById('ui-target-text').textContent = `${this.score.toLocaleString('es-ES')} / ${this.targetScore.toLocaleString('es-ES')}`;
+            }
+
+            // Muestra un banner temporal encima del tablero
+            showBanner(text) {
+                this.statusBanner.textContent = text;
+                this.statusBanner.classList.remove('opacity-0');
+                clearTimeout(this.bannerTimeout);
+                this.bannerTimeout = setTimeout(() => {
+                    this.statusBanner.classList.add('opacity-0');
+                }, 2200);
+            }
+
+            // ========================================================================
+            // EFECTOS VISUALES (Partículas, Textos Flotantes, Onda Expansiva)
+            // ========================================================================
+            spawnParticles(r, c, color) {
+                const centerX = (c + 0.5) * this.cellPercent;
+                const centerY = (r + 0.5) * this.cellPercent;
+
+                for (let i = 0; i < 7; i++) {
+                    const p = document.createElement('div');
+                    p.className = 'particle';
+                    const size = 4 + Math.random() * 5;
+                    const angle = (Math.PI * 2 * i) / 7 + Math.random() * 0.5;
+                    const dist = 25 + Math.random() * 35;
+
+                    p.style.width = `${size}px`;
+                    p.style.height = `${size}px`;
+                    p.style.left = `${centerX}%`;
+                    p.style.top = `${centerY}%`;
+                    p.style.backgroundColor = i % 2 === 0 ? color : '#ffffff';
+                    p.style.boxShadow = `0 0 6px ${color}`;
+                    p.style.setProperty('--tx', `${Math.cos(angle) * dist}px`);
+                    p.style.setProperty('--ty', `${Math.sin(angle) * dist}px`);
+
+                    this.fxLayer.appendChild(p);
+                    setTimeout(() => p.remove(), 650);
+                }
+            }
+
+            spawnFloatingScore(r, c, text) {
+                const el = document.createElement('div');
+                el.className = 'floating-score';
+                el.textContent = text;
+                el.style.left = `${(c + 0.5) * this.cellPercent}%`;
+                el.style.top = `${(r + 0.5) * this.cellPercent}%`;
+
+                this.fxLayer.appendChild(el);
+                setTimeout(() => el.remove(), 950);
+            }
+
+            spawnShockwave(r, c) {
+                const wave = document.createElement('div');
+                wave.className = 'shockwave';
+                wave.style.width = `${this.cellPercent * 2.2}%`;
+                wave.style.height = `${this.cellPercent * 2.2}%`;
+                wave.style.left = `${(c + 0.5) * this.cellPercent}%`;
+                wave.style.top = `${(r + 0.5) * this.cellPercent}%`;
+
+                this.fxLayer.appendChild(wave);
+                setTimeout(() => wave.remove(), 450);
+            }
+
+            shakeBoard() {
+                this.boardFrameEl.classList.remove('shake-board');
+                void this.boardFrameEl.offsetWidth; // Reiniciar animación CSS
+                this.boardFrameEl.classList.add('shake-board');
+            }
+
+            wait(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+        }
+
+        // Inicializar el juego cuando la página haya cargado completamente
+        window.onload = function () {
+            window.game = new CrystalCaveGame();
+        };
+    </script>
+</body>
+</html>
